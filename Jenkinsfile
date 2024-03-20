@@ -1,32 +1,33 @@
-pipeline{
-  agent any
-  environment {
-        imageName = "docker-image"
-        registryCredentials = "nexus"
-        registry = "54.236.40.60:9091/"
-        dockerImage = ''
-    }
-  stages{
-    stage('checkout'){
-      steps{
-         checkout([$class: 'GitSCM', branches: [[name: '**']], extensions: [], userRemoteConfigs: [[credentialsId: 'github', url: 'https://github.com/utsav1313/Task-Kubernets.git']]])
-      }
-    }
-     stage('Building image') {
-      steps{
-        script {
-          dockerImage = docker.build imageName
+pipeline {
+    agent any
+    stages {
+        stage('Git checkout') {
+            steps {
+                checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/ankush-09/flsk_appdynamic_app.git']])
+            }
         }
-      }
-    }
-    stage('Uploading to Nexus') {
-     steps{  
-         script {
-             docker.withRegistry( 'http://'+registry, registryCredentials ) {
-             dockerImage.push('latest')
-          }
+        stage('Print workspace') {
+            steps {
+                sh "ls -a ${WORKSPACE}"
+            }
         }
-      }
+        stage('Grype scan') {
+            steps {
+                grypeScan scanDest: "dir:${WORKSPACE}", repName: 'ScanResult.txt', autoInstall:true
+            }
+        }
     }
-  }
+    post {
+        always {
+            // Publish HTML report
+            publishHTML([
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: '.',
+                reportFiles: 'ScanResult.txt',
+                reportName: 'Grype Scan Report'
+            ])
+        }
+    }
 }
